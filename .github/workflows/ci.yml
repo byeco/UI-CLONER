@@ -1,4 +1,4 @@
-name: Omega CI
+name: Build & CI
 
 on:
   push:
@@ -10,17 +10,13 @@ on:
       - master
       - main
 
-# Cancel in-progress runs for the same branch/PR
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ─────────────────────────────────────────────────────────
-  # Stage 1: Install & Cache Dependencies
-  # ─────────────────────────────────────────────────────────
-  install:
-    name: 📦 Install Dependencies
+  build:
+    name: 📦 Build Extension
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -33,148 +29,21 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
+      - name: Run Build
+        run: npm run build
 
-  # ─────────────────────────────────────────────────────────
-  # Stage 2: Security Audit (non-blocking)
-  # ─────────────────────────────────────────────────────────
-  security:
-    name: 🔒 Security Audit
-    runs-on: ubuntu-latest
-    needs: install
-    continue-on-error: true
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Verify Manifest and Dist Output
+        run: |
+          test -f dist/manifest.json || { echo "Missing dist/manifest.json"; exit 1; }
+          test -f dist/sidepanel.html || { echo "Missing dist/sidepanel.html"; exit 1; }
+          test -f dist/popup.html || { echo "Missing dist/popup.html"; exit 1; }
+          echo "✅ Build verification successful!"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Run security audit
-        run: npm audit --audit-level=high || true
-
-  # ─────────────────────────────────────────────────────────
-  # Stage 3: Lint
-  # ─────────────────────────────────────────────────────────
-  lint:
-    name: 🔍 Lint Check
-    runs-on: ubuntu-latest
-    needs: install
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Run ESLint
-        run: npm run lint
-
-  # ─────────────────────────────────────────────────────────
-  # Stage 4: TypeScript Type Check
-  # ─────────────────────────────────────────────────────────
-  typecheck:
-    name: 📝 TypeScript Check
-    runs-on: ubuntu-latest
-    needs: install
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Run TypeScript compiler check
-        run: npm run typecheck
-
-  # ─────────────────────────────────────────────────────────
-  # Stage 5: Unit Tests with Coverage
-  # ─────────────────────────────────────────────────────────
-  test:
-    name: 🧪 Unit Tests
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Restore node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('package-lock.json') }}
-
-      - name: Run tests with coverage
-        run: npm run test:ci -- --passWithNoTests
-
-      - name: Upload coverage report
-        if: always()
+      - name: Upload Extension Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 14
-
-  # ─────────────────────────────────────────────────────────
-  # Stage 6: Final Status (aggregates all results)
-  # ─────────────────────────────────────────────────────────
-  ci-status:
-    name: ✅ CI Status
-    runs-on: ubuntu-latest
-    needs: [security, lint, typecheck, test]
-    if: always()
-    steps:
-      - name: Check all job results
-        run: |
-          echo "🔒 Security: ${{ needs.security.result }}"
-          echo "🔍 Lint: ${{ needs.lint.result }}"
-          echo "📝 TypeCheck: ${{ needs.typecheck.result }}"
-          echo "🧪 Tests: ${{ needs.test.result }}"
-
-          if [[ "${{ needs.lint.result }}" == "failure" || \
-                "${{ needs.typecheck.result }}" == "failure" || \
-                "${{ needs.test.result }}" == "failure" ]]; then
-            echo "❌ CI Failed!"
-            exit 1
-          fi
-
-          echo "✅ All checks passed!"
+          name: omnitab-extension
+          path: dist/
+          retention-days: 7

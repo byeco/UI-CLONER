@@ -1,0 +1,24 @@
+{
+  "name": "byeco-ui-cloner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "package": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-extension.ps1",
+    "server": "node server/index.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "@tailwindcss/vite": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "tailwindcss": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {}
+}

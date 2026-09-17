@@ -1,6 +1,8 @@
 # Information or contact information in case someone steals it
 
-Mail= `info@byeco.xyz`
+Mail= `bye@nostge.net`
+
+Instagram= `byeco_official`
 
 Discord Name= `byeeco`
 

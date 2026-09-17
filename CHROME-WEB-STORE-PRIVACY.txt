@@ -1,0 +1,40 @@
+BYECO UI CLONER - CHROME WEB STORE GIZLILIK UYGULAMALARI
+
+Bu dosyadaki aciklamalari Chrome Web Store gelistirici panelindeki Oge duzenleme > Gizlilik uygulamalari alanlarina kopyalayabilirsiniz.
+
+TEK AMAC ACIKLAMASI
+Bu uzanti, kullanicinin web sayfalarindaki arayuz ogelerini incelemesine ve secilen ogeden React JSX, Tailwind CSS ve saf CSS kodu uretmesine yardimci olur.
+
+AYRINTILI ACIKLAMA
+BYECO UI Cloner, kullanicinin izin verdigi web sayfasinda bir arayuz ogesini secmesine, ogenin boyut ve hesaplanmis stil bilgilerini gormesine ve bu bilgileri kullanarak React JSX, Tailwind CSS ve saf CSS kodu uretmesine yarayan bir gelistirici aracidir. Uzanti, secim islemi icin sayfa uzerinde gecici bir inceleme katmani gosterir. Yapay zeka istegi, kullanicinin sectigi moda gore BYECO AI sunucusuna veya kullanicinin kendi Groq API anahtarini girdigi dogrudan Groq API baglantisina gonderilir. Uzanti reklam, takip, analitik veya kullanici profili olusturma amaciyla kullanilmaz.
+
+ACTIVE TAB ICIN GEREKCE
+activeTab izni, kullanicinin acikca sectigi aktif sekmedeki arayuz ogesini incelemek, ogenin DOM ve hesaplanmis stil bilgilerini almak ve secilen ogeden kod uretmek icin kullanilir. Uzanti bu islemi yalnizca kullanici inceleme islemini baslattiginda yapar.
+
+ANA MAKINE IZNI KULLANIMI ICIN GEREKCE
+Ana makine izni, kullanicinin kendi ziyaret ettigi web sayfalarinda secilen arayuz ogesini inceleyebilmek icin gereklidir. Uzanti web sayfalarinda arka planda gezinmez, sayfa icerigini toplu olarak taramaz ve secim yapilmadigi surece icerik gondermez.
+
+SCRIPTING ICIN GEREKCE
+scripting izni, kullanicinin inceleme islemini baslatmasiyla secilen web sayfasina gecici inceleme kodu enjekte etmek ve secilen DOM ogesinin bilgilerini yan panele aktarmak icin kullanilir.
+
+SIDEPANEL ICIN GEREKCE
+sidePanel izni, inceleme sonuclarini, ayarlari ve uretilen React/Tailwind kodunu Chrome yan panelinde gostermek icin kullanilir.
+
+STORAGE ICIN GEREKCE
+storage izni, kullanicinin dil tercihini, baglanti modunu, model tercihini, kendi API anahtarini ve ortak sistem kullanim kotasi bilgisini kullanicinin yerel Chrome depolamasinda saklamak icin kullanilir. Bu veriler reklam veya takip amaciyla kullanilmaz.
+
+CONTEXTMENUS ICIN GEREKCE
+contextMenus izni, kullanicinin web sayfasinda sag tik menusu uzerinden BYECO UI Cloner yan panelini acabilmesini saglamak icin kullanilir.
+
+UZAKTAN KOD KULLANIMI ICIN GEREKCE
+Uzanti uzaktan kod kullanmaz. Calisan JavaScript ve uzanti kaynak kodunun tamami uzanti paketinin icinde bulunur. Uzak sunucuya yalnizca kullanicinin sectigi arayuz verisi, kullanicinin secimine gore yapay zeka kodu uretmek amaciyla API istegi olarak gonderilebilir; uzaktan JavaScript kodu indirilmez, yuklenmez veya calistirilmaz.
+
+VERI KULLANIMI POLITIKA ONAYI
+BYECO UI Cloner'in veri kullanimi, Chrome Web Store Gelistirici Program Politikalari ile uyumludur. Uzanti kullanici verilerini reklam, satis, kredi puanlama, takip veya kullanici profili olusturma amaclariyla kullanmaz. Veri kullanimi uzantinin temel arayuz inceleme ve kod uretme isleviyle sinirlidir.
+
+VERI AKISI OZETI
+1. Kullanici web sayfasinda bir ogeyi acikca secer.
+2. Uzanti secilen ogenin gerekli arayuz ve stil bilgilerini alip yan panelde gosterir.
+3. Ortak BYECO AI modu seciliyse istek yapilandirilmis BYECO sunucusuna gonderilir ve ortak kullanim kotasi uygulanir.
+4. Dogrudan Groq API modu seciliyse istek kullanicinin kendi API anahtariyla Groq API'ye gonderilir; BYECO ortak uygulama kotasi uygulanmaz.
+5. API anahtari dogrudan modda chrome.storage.local icinde saklanir ve uzanti gelistiricisine gonderilmez.

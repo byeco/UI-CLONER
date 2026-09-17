@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "BYECO UI Cloner",
+  "version": "1.0.0",
+  "description": "Inspect web elements and generate clean React JSX, Tailwind CSS, and production-ready component code with BYECO AI.",
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "icons": {
+    "48": "ICON/icon.png",
+    "128": "ICON/icon128.png"
+  },
+  "action": {
+    "default_icon": "ICON/icon.png",
+    "default_title": "BYECO UI Cloner"
+  },
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "contextMenus"],
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:8787/*",
+    "https://api.groq.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["assets/content.js"]
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}
