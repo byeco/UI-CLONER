@@ -6,6 +6,9 @@ import '../styles.css';
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const DEFAULT_API_MODE = 'proxy';
+// BYECO AI sunucunun herkese açık adresi. Dagitimdan ÖNCE kendi adresini yaz,
+// örn: 'https://byeco-ai.onrender.com' (sonunda /api/analyze YOK).
+// Kullanıcılar sunucu/terminal görmez; eklenti buraya bağlanır.
 const PROXY_API_URL = 'http://localhost:8787';
 const VALID_MODELS = [
   'openai/gpt-oss-120b',
@@ -132,7 +135,11 @@ function parseModelJson(content, lang) {
   try {
     return JSON.parse(withoutFences.slice(start, end + 1));
   } catch {
-    throw new Error(lang === 'tr' ? 'Model cevabı eksik veya bozuk JSON içeriyor. Tekrar deneyin.' : 'The model returned incomplete or invalid JSON. Please try again.');
+    try {
+      return JSON.parse(withoutFences.slice(start, end + 1).replace(/,(\s*[}\]])/g, '$1'));
+    } catch {
+      throw new Error(lang === 'tr' ? 'Model cevabı eksik veya bozuk JSON içeriyor. Tekrar deneyin.' : 'The model returned incomplete or invalid JSON. Please try again.');
+    }
   }
 }
 
@@ -244,8 +251,8 @@ function SidePanel() {
   const [subTab, setSubTab] = useState('split'); // 'split' | 'jsx' | 'css' | 'tailwind'
   const [cache, setCache] = useState({});
 
-  // AI Quota State: 5 uses per 30 minutes
-  const [usageHistory, setUsageHistory] = useState([]);
+  // AI Quota State: per-model usage history { [model]: [{timestamp, tokens}] }
+  const [usageHistory, setUsageHistory] = useState({});
   const [nowTick, setNowTick] = useState(Date.now());
 
   useEffect(() => {
@@ -436,17 +443,92 @@ function SidePanel() {
     : { requestsPerDay: null, tokensPerDay: null, tokensPerMinute: null, requestsPerMinute: null };
   const remainingQuota = isSharedProxy ? quotaSnapshot.remainingDayRequests : null;
   const remainingMinuteQuota = isSharedProxy ? quotaSnapshot.remainingMinuteRequests : null;
-  const isQuotaReached = isSharedProxy && (remainingQuota === 0 || quotaSnapshot.remainingDayTokens === 0 || quotaSnapshot.remainingMinuteTokens === 0);
-  const earliestUsage = quotaSnapshot.dayCount > 0 ? Math.min(...quotaSnapshot.dayCount ? getModelUsageRecords(usageHistory, model).map((entry) => entry.timestamp) : []) : null;
-  const timeUntilReset = (remainingQuota === 0 && earliestUsage)
-    ? Math.max(0, (earliestUsage + DAY_MS) - nowTick)
-    : 0;
+  const isQuotaReached = isSharedProxy && (remainingQuota === 0 || remainingMinuteQuota === 0 || quotaSnapshot.remainingDayTokens === 0 || quotaSnapshot.remainingMinuteTokens === 0);
+  const modelRecords = getModelUsageRecords(usageHistory, model);
+  const earliestDay = quotaSnapshot.dayCount > 0 ? Math.min(...modelRecords.map((entry) => entry.timestamp)) : null;
+  const earliestMinute = quotaSnapshot.minuteCount > 0
+    ? Math.min(...modelRecords.filter((entry) => nowTick - entry.timestamp < 60 * 1000).map((entry) => entry.timestamp))
+    : null;
+  const timeUntilReset = !isSharedProxy
+    ? 0
+    : (remainingQuota === 0 && earliestDay !== null)
+      ? Math.max(0, (earliestDay + DAY_MS) - nowTick)
+      : (remainingMinuteQuota === 0 && earliestMinute !== null)
+        ? Math.max(0, (earliestMinute + 60 * 1000) - nowTick)
+        : 0;
 
   const copyOutput = async (label, value) => {
     const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-    await navigator.clipboard.writeText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for contexts where the async clipboard API is unavailable
+      // (avoids needing the clipboardWrite permission in the manifest).
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
     setCopied(label);
     window.setTimeout(() => setCopied(''), 1600);
+  };
+
+  // Doğrudan Groq çağrısı (direct mod + proxy erişilemezken otomatik yedek).
+  const callGroqDirect = async (key, targetModel, contentFor) => {
+    let activeTargetModel = targetModel;
+    const isVision = activeTargetModel === 'qwen/qwen3.8-27b' && Boolean(screenshot);
+
+    let response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+            model: activeTargetModel,
+            temperature: 0.2,
+            max_tokens: 4000,
+        messages: [
+          { role: 'system', content: 'You produce clean React functional components with Tailwind CSS in JSON format.' },
+          { role: 'user', content: contentFor(activeTargetModel) }
+        ]
+      })
+    });
+
+    // Vision modeli meşgulse otomatik olarak amiral gemisi 120B modeline geç
+    if (!response.ok && isVision) {
+      console.warn('Vision model busy, falling back to openai/gpt-oss-120b flagship model...');
+      activeTargetModel = 'openai/gpt-oss-120b';
+      response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+              model: activeTargetModel,
+              temperature: 0.2,
+              max_tokens: 4000,
+          messages: [
+            { role: 'system', content: 'You produce clean React functional components with Tailwind CSS in JSON format.' },
+            { role: 'user', content: contentFor(activeTargetModel) }
+          ]
+        })
+      });
+    }
+
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(getModelErrorMessage(payload, lang));
+    }
+
+    const content = payload.choices?.[0]?.message?.content;
+    return { ...parseModelJson(content, lang), model: activeTargetModel };
   };
 
   const analyzeSelection = async () => {
@@ -539,62 +621,16 @@ Selected UI: ${promptSelectionJson}`;
         : compactPromptText;
 
       if (apiMode === 'direct') {
-        if (!apiKey) {
+        if (!apiKey.trim()) {
           throw new Error(t.errNoKey);
         }
 
-        let activeTargetModel = VALID_MODELS.includes(model) ? model : DEFAULT_MODEL;
-        const isVision = activeTargetModel === 'qwen/qwen3.8-27b' && Boolean(screenshot);
-
-        let response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey.trim()}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: activeTargetModel,
-            temperature: 0.2,
-            max_tokens: 1700,
-            messages: [
-              { role: 'system', content: 'You produce clean React functional components with Tailwind CSS in JSON format.' },
-              { role: 'user', content: userContent(activeTargetModel) }
-            ]
-          })
-        });
-
-        // Vision modeli meşgulse otomatik olarak amiral gemisi 120B modeline geç
-        if (!response.ok && isVision) {
-          console.warn('Vision model busy, falling back to openai/gpt-oss-120b flagship model...');
-          activeTargetModel = 'openai/gpt-oss-120b';
-          response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${apiKey.trim()}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              model: activeTargetModel,
-              temperature: 0.2,
-              max_tokens: 1700,
-              messages: [
-                { role: 'system', content: 'You produce clean React functional components with Tailwind CSS in JSON format.' },
-                { role: 'user', content: userContent(activeTargetModel) }
-              ]
-            })
-          });
-        }
-
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(getModelErrorMessage(payload, lang));
-        }
-
-        const content = payload.choices?.[0]?.message?.content;
-        resultAnalysis = { ...parseModelJson(content, lang), model: activeTargetModel };
+        const activeTargetModel = VALID_MODELS.includes(model) ? model : DEFAULT_MODEL;
+        resultAnalysis = await callGroqDirect(apiKey.trim(), activeTargetModel, userContent);
       } else {
         const activeTargetModel = VALID_MODELS.includes(model) ? model : DEFAULT_MODEL;
         let response;
+        let proxyUnreachable = false;
         try {
           response = await fetch(`${PROXY_API_URL}/api/analyze`, {
             method: 'POST',
@@ -602,15 +638,22 @@ Selected UI: ${promptSelectionJson}`;
             body: JSON.stringify({ selection: promptSelection, model: activeTargetModel, language: lang })
           });
         } catch {
-          throw new Error(
-            lang === 'tr'
-              ? 'Yerel AI sunucusu çalışmıyor. Terminalde "npm run server" komutunu çalıştırın veya Ayarlar > Bağlantı Modu bölümünden Doğrudan Groq API seçin.'
-              : 'The local AI server is not running. Run "npm run server" in the terminal or choose Direct Groq API in Settings > Connection Mode.'
-          );
+          proxyUnreachable = true;
         }
-        const payload = await response.json();
-        if (!response.ok) throw new Error(getModelErrorMessage(payload, lang) || t.errServer);
-        resultAnalysis = { ...payload.analysis, model: activeTargetModel };
+        if (proxyUnreachable) {
+          // Sunucu kapalıysa sessizce yedek yola geç: kayıtlı anahtar varsa
+          // doğrudan dene. İkisi de yoksa Ayarlar'ı açıp anahtarı iste.
+          if (apiKey.trim()) {
+            resultAnalysis = await callGroqDirect(apiKey.trim(), activeTargetModel, userContent);
+          } else {
+            setIsSettingsOpen(true);
+            throw new Error(t.errNoKey);
+          }
+        } else {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(getModelErrorMessage(payload, lang) || t.errServer);
+          resultAnalysis = { ...payload.analysis, model: activeTargetModel };
+        }
       }
 
       setAnalysis(resultAnalysis);

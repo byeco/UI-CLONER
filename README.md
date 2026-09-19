@@ -17,9 +17,9 @@ BYECO UI Cloner is a modern Manifest V3 Chrome extension for developers and desi
   - Accessibility (WCAG / ARIA) recommendations
   - Production-ready React code
   - Actionable next steps
-- **Privacy & Security First (BYOK Support):**
-  - **Direct Mode:** Enter your free Groq API key directly into the extension Settings. It is stored exclusively in your browser's private `chrome.storage.local` sandbox. No server required.
-  - **Local Proxy Mode:** Alternatively, run the included Node.js Express proxy (`npm run server`) using the key stored in your local `.env` file.
+- **Privacy & Security First:**
+  - **BYECO AI Server (Recommended):** Run the included Node.js proxy (`npm run server` or double-click `BASLAT-SUNUCU.bat`) with the shared key in your local `.env` file. Extension users need no API key of their own.
+  - **Direct Mode:** Alternatively, enter your own free Groq API key in Settings. It stays in your browser's private `chrome.storage.local` sandbox.
 
 ---
 
@@ -42,16 +42,27 @@ Upload `byeco-ui-cloner.zip` from the project root. The ZIP contains the content
 
 The packaging command rebuilds `dist/`, removes any previous ZIP, and verifies that `manifest.json` is at the archive root before completing.
 
-### Optional Local Proxy
+### 2. Deploy the AI server once (your key lives here, never in the extension)
 
-```bash
-copy .env.example .env
+Users install only the extension — no terminal, no `.bat`, zero setup.
+Your Groq key stays on the server as an environment variable.
+
+1. Deploy `server/` to any Node host (Render / Railway / Fly.io / VPS with Docker):
+   - Docker: build this repo's `Dockerfile` (`.env` and `.groqkey.enc` are excluded by `.dockerignore`).
+   - Or plain Node: copy `server/`, `package.json`, `package-lock.json`; run `npm ci --omit=dev`, then `node server/index.mjs`.
+2. Set these environment variables on the host:
+   - `GROQ_API_KEY` = your shared key (secret env var — never in code)
+   - `HOST=0.0.0.0`, `PORT=8787` (or the host's port), `PUBLIC_MODE=true`
+3. Point the extension at it: set `PROXY_API_URL` in `src/sidepanel/main.jsx` to your public URL (e.g. `https://byeco-ai.onrender.com`), then rebuild + repackage.
+
+Local development alternative (key stays on your machine only):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/set-key.ps1
 npm run server
 ```
 
-The proxy listens on `http://localhost:8787`. Keep `.env` local and never commit its API key.
-
-### 2. Load in Chrome
+### 3. Load in Chrome
 
 1. Open Chrome and navigate to `chrome://extensions`.
 2. Enable **Developer mode** in the top right.
@@ -62,15 +73,18 @@ The proxy listens on `http://localhost:8787`. Keep `.env` local and never commit
 
 ## 🤖 Groq AI Setup
 
-You have two ways to power the AI features:
+Two ways to power the AI features:
 
-### Option A: Direct Client Mode (Recommended for personal use)
-1. Open the BYECO UI Cloner side panel.
-2. Click the **⚙ Settings** button in the header.
-3. Choose **Direct Groq API** as your connection mode.
-4. Paste your free API key from [Groq Console](https://console.groq.com/keys).
-5. Select your preferred model (e.g. `llama-3.3-70b-versatile` or `llama-3.1-8b-instant`).
-6. Click **Save Settings**. Done!
+### Option A: BYECO AI Server (Recommended — no key needed in the extension)
+1. Put the shared key in `.env` as `GROQ_API_KEY`.
+2. Start the server (`npm run server` or `BASLAT-SUNUCU.bat`).
+3. In the side panel Settings, choose **BYECO AI Server**. Done!
+
+### Option B: Direct Mode (your own key, no server)
+1. Open Settings (⚙) in the side panel.
+2. Choose **Direct Groq API**.
+3. Paste your free API key from [Groq Console](https://console.groq.com/keys).
+4. Click **Save Settings**. Done!
 
 ---
 

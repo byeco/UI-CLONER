@@ -1,0 +1,7 @@
+node_modules
+dist
+.git
+.env
+.groqkey.enc
+byeco-ui-cloner.zip
+npm-debug.log*

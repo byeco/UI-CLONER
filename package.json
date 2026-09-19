@@ -7,18 +7,18 @@
     "dev": "vite",
     "build": "vite build",
     "package": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-extension.ps1",
+    "secret-scan": "node scripts/check-secrets.mjs",
     "server": "node server/index.mjs"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
     "@tailwindcss/vite": "latest",
+    "@vitejs/plugin-react": "latest",
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
-    "tailwindcss": "latest",
-    "vite": "latest",
     "react": "latest",
-    "react-dom": "latest"
-  },
-  "devDependencies": {}
+    "react-dom": "latest",
+    "tailwindcss": "latest",
+    "vite": "latest"
+  }
 }

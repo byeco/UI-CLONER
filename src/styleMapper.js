@@ -100,6 +100,61 @@ function arbitrary(property, value) {
   return `${property}-[${value.replaceAll(' ', '_')}]`;
 }
 
+// JSX metinlerinde { } < > & karakterleri çıktıyı bozar; escape şart.
+// Tek passta replace (ayrı replaceAll zinciri kendi ürettiği
+// süslü parantezleri tekrar kaçırırdı).
+function escapeJsxText(text) {
+  return String(text ?? '').replaceAll(/[&<>{}]/g, (ch) =>
+    ch === '&' ? '&amp;'
+    : ch === '<' ? '&lt;'
+    : ch === '>' ? '&gt;'
+    : ch === '{' ? "{'{'}"
+    : "{'}'}"
+  );
+}
+
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;');
+}
+
+// "8px 16px" gibi shorthand'ları Tailwind'e doğru çevir:
+// hepsi eşitse p-2, değilse py-/px- veya tekil (pt-/pr-/...) sınıflar.
+// Tek değerli p-[8px_16px] geçersiz Tailwind üretirdi.
+function spacingSideClass(prefix, side, value) {
+  if (!value || value === '0px') return null;
+  const token = spacingScale[value];
+  const base = side ? `${prefix}${side}` : prefix;
+  return token ? `${base}-${token}` : `${base}-[${value}]`;
+}
+
+function boxClasses(prefix, value) {
+  if (!value || value === '0px') return [];
+  const parts = value.trim().split(/\s+/);
+  let top, right, bottom, left;
+  if (parts.length === 1) [top, right, bottom, left] = [parts[0], parts[0], parts[0], parts[0]];
+  else if (parts.length === 2) [top, right, bottom, left] = [parts[0], parts[1], parts[0], parts[1]];
+  else if (parts.length === 3) [top, right, bottom, left] = [parts[0], parts[1], parts[2], parts[1]];
+  else [top, right, bottom, left] = [parts[0], parts[1], parts[2], parts[3]];
+
+  if (top === bottom && left === right && top === left) {
+    return [spacingSideClass(prefix, '', top)].filter(Boolean);
+  }
+  if (top === bottom && left === right) {
+    return [
+      spacingSideClass(`${prefix}y`, '', top),
+      spacingSideClass(`${prefix}x`, '', left)
+    ].filter(Boolean);
+  }
+  return [
+    spacingSideClass(prefix, 't', top),
+    spacingSideClass(prefix, 'r', right),
+    spacingSideClass(prefix, 'b', bottom),
+    spacingSideClass(prefix, 'l', left)
+  ].filter(Boolean);
+}
+
 export function computedStyleToTailwind(style) {
   if (!style) return '';
   const classes = [];
@@ -165,9 +220,12 @@ export function computedStyleToTailwind(style) {
     classes.push(radiusMap[style.borderRadius] || arbitrary('rounded', style.borderRadius));
   }
 
-  // Padding
+  // Padding (shorthand-safe) & Margin (önceden hiç map edilmiyordu)
   if (style.padding && style.padding !== '0px') {
-    classes.push(spacingScale[style.padding] ? `p-${spacingScale[style.padding]}` : arbitrary('p', style.padding));
+    classes.push(...boxClasses('p', style.padding));
+  }
+  if (style.margin && style.margin !== '0px') {
+    classes.push(...boxClasses('m', style.margin));
   }
 
   // Border & Shadow
@@ -204,13 +262,14 @@ export function elementToJsx(element, style, depth = 0) {
 
   let attrString = className ? ` className="${className}"` : '';
   if (element?.attributes) {
-    if (element.attributes.href) attrString += ` href="${element.attributes.href}"`;
-    if (element.attributes.src) attrString += ` src="${element.attributes.src}"`;
-    if (element.attributes.alt) attrString += ` alt="${element.attributes.alt}"`;
-    if (element.attributes.type) attrString += ` type="${element.attributes.type}"`;
-    if (element.attributes.placeholder) attrString += ` placeholder="${element.attributes.placeholder}"`;
-    if (element.attributes['aria-label']) attrString += ` aria-label="${element.attributes['aria-label']}"`;
-    if (element.attributes.role) attrString += ` role="${element.attributes.role}"`;
+    const attrs = element.attributes;
+    if (attrs.href) attrString += ` href="${escapeAttr(attrs.href)}"`;
+    if (attrs.src) attrString += ` src="${escapeAttr(attrs.src)}"`;
+    if (attrs.alt) attrString += ` alt="${escapeAttr(attrs.alt)}"`;
+    if (attrs.type) attrString += ` type="${escapeAttr(attrs.type)}"`;
+    if (attrs.placeholder) attrString += ` placeholder="${escapeAttr(attrs.placeholder)}"`;
+    if (attrs['aria-label']) attrString += ` aria-label="${escapeAttr(attrs['aria-label'])}"`;
+    if (attrs.role) attrString += ` role="${escapeAttr(attrs.role)}"`;
   }
 
   const indent = '  '.repeat(depth);
@@ -220,7 +279,7 @@ export function elementToJsx(element, style, depth = 0) {
     const renderedChildren = element.children
       .map((child) => elementToJsx(child, child.style, depth + 1))
       .join('\n');
-    const directText = element.text ? `${childIndent}<span>${element.text}</span>\n` : '';
+    const directText = element.text ? `${childIndent}<span>${escapeJsxText(element.text)}</span>\n` : '';
     return `${indent}<${tag}${attrString}>\n${directText}${renderedChildren}\n${indent}</${tag}>`;
   }
 
@@ -229,7 +288,7 @@ export function elementToJsx(element, style, depth = 0) {
   }
 
   if (element?.text) {
-    return `${indent}<${tag}${attrString}>${element.text}</${tag}>`;
+    return `${indent}<${tag}${attrString}>${escapeJsxText(element.text)}</${tag}>`;
   }
 
   return `${indent}<${tag}${attrString}></${tag}>`;
